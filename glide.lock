@@ -1,0 +1,11 @@
+hash: 19980eb1eff1d4ab8e6cf4b99ef9779fe23e9485b7970f903f04e48ce865e5c0
+updated: 2016-07-31T20:47:40.68172535-06:00
+imports:
+- name: golang.org/x/crypto
+  version: bc89c496413265e715159bdc8478ee9a92fdc265
+  subpackages:
+  - ssh
+  - curve25519
+  - ed25519
+  - ed25519/internal/edwards25519
+devImports: []
