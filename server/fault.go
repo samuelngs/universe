@@ -6,5 +6,5 @@ const namespace string = "server"
 
 // Error messages
 var (
-	ErrUnauthentized = errors.Unauthorized(namespace, "connection unauthorized")
+	ErrUnauthentized = errors.Unauthorized(namespace, "authorization has been refused")
 )

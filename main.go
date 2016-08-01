@@ -27,14 +27,25 @@ func main() {
 		log.Fatal(err)
 	}
 
-	ser := server.New(server.Option{
-		NoClientAuth:           *noauth,
-		PasswordAuthentication: *allowpassword,
-		RSAAuthentication:      *allowrsa,
-		Addr:                   *addr,
-		Protocol:               *protocol,
-		HostKey:                key,
-	})
+	ser := server.New(
+		server.ClientAuth(*noauth),
+		server.PasswordAuthentication(*allowpassword),
+		server.RSAAuthentication(*allowrsa),
+		server.ListenAddr(*addr),
+		server.Protocol(*protocol),
+		server.HostKey(key),
+	)
+
+	go func() {
+		for {
+			select {
+			case s := <-ser.Logging():
+				log.Print(s)
+			case s := <-ser.Subscribe():
+				log.Print(s)
+			}
+		}
+	}()
 
 	ser.Run()
 }
