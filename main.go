@@ -28,13 +28,21 @@ func main() {
 	}
 
 	ser := server.New(
+		server.ListenAddr(*addr),
 		server.ClientAuth(*noauth),
 		server.PasswordAuthentication(*allowpassword),
 		server.RSAAuthentication(*allowrsa),
-		server.ListenAddr(*addr),
 		server.Protocol(*protocol),
 		server.HostKey(key),
+		server.Metadata(map[string]string{
+			"x-machine-id": "",
+		}),
 	)
+
+	ser.Use(func(c *server.Context) error {
+		log.Printf("hey %v", c.RemoteAddr())
+		return nil
+	})
 
 	go func() {
 		for {

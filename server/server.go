@@ -2,21 +2,17 @@ package server
 
 import (
 	"fmt"
-	"log"
 	"net"
 	"os"
 	"os/signal"
 	"syscall"
 
-	"github.com/samuelngs/universe/pkg/crypto"
-
 	"golang.org/x/crypto/ssh"
 )
 
-// type Handler
-
 // Server daemon for Secure Shell
 type Server interface {
+	Use(...Handler)
 	Run() error
 	Stop() error
 	Started() bool
@@ -31,70 +27,34 @@ func New(opts ...Option) Server {
 	ser.events = make(chan Event)
 	ser.logger = make(chan Log)
 	ser.option = newOptions(opts...)
-	ser.authenticator = &authenticator{
-		option: ser.option,
-		logger: ser.logger,
-	}
-	ser.config = &ssh.ServerConfig{
-		PasswordCallback: func(md ssh.ConnMetadata, pass []byte) (*ssh.Permissions, error) {
-			switch {
-			case ser.option.NoClientAuth:
-				return nil, nil
-			case ser.option.PasswordAuthentication:
-				return ser.authenticator.Password(md, pass)
-			default:
-				return nil, ErrUnauthentized
-			}
-		},
-		PublicKeyCallback: func(md ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
-			switch {
-			case ser.option.NoClientAuth:
-				return nil, nil
-			case ser.option.RSAAuthentication:
-				return ser.authenticator.PublicKey(md, key)
-			default:
-				return nil, ErrUnauthentized
-			}
-		},
-		AuthLogCallback: func(md ssh.ConnMetadata, method string, err error) {
-			switch {
-			case err != nil:
-				ser.logger <- &trace{
-					topic:   TraceAuthentication,
-					message: fmt.Sprintf("Reject connection from %s@%s, %s (%s)", md.User(), md.LocalAddr(), md.RemoteAddr(), md.ClientVersion()),
-					err:     err,
-				}
-			default:
-				ser.logger <- &trace{
-					topic:   TraceAuthentication,
-					message: fmt.Sprintf("Accept connection from %s@%s, %s (%s)", md.User(), md.LocalAddr(), md.RemoteAddr(), md.ClientVersion()),
-				}
-			}
-		},
-	}
-	if ser.option.HostKey == nil {
-		k, err := crypto.Generate()
-		if err != nil {
-			log.Fatal(err)
-		}
-		ser.option.HostKey = k
-	}
-	if signer, err := ser.option.HostKey.Signer(); err != nil {
-		log.Fatal(err)
-	} else if err == nil {
-		ser.config.AddHostKey(signer)
-	}
+	ser.config = newConfigs(ser.option)
+	// ser.config = &ssh.ServerConfig{
+	// 	AuthLogCallback: func(md ssh.ConnMetadata, method string, err error) {
+	// 		switch {
+	// 		case err != nil:
+	// 			ser.logger <- &trace{
+	// 				topic:   TraceAuthentication,
+	// 				message: fmt.Sprintf("Reject connection from %s@%s, %s (%s)", md.User(), md.LocalAddr(), md.RemoteAddr(), md.ClientVersion()),
+	// 				err:     err,
+	// 			}
+	// 		default:
+	// 			ser.logger <- &trace{
+	// 				topic:   TraceAuthentication,
+	// 				message: fmt.Sprintf("Accept connection from %s@%s, %s (%s)", md.User(), md.LocalAddr(), md.RemoteAddr(), md.ClientVersion()),
+	// 			}
+	// 		}
+	// 	},
+	// }
 	return ser
 }
 
 // internal server
 type server struct {
-	option        *Options
-	config        *ssh.ServerConfig
-	events        chan Event
-	logger        chan Log
-	started       bool
-	authenticator *authenticator
+	option  *Options
+	config  *Configs
+	events  chan Event
+	logger  chan Log
+	started bool
 }
 
 func (v *server) observe(listener net.Listener) {
@@ -104,7 +64,7 @@ func (v *server) observe(listener net.Listener) {
 		if err != nil {
 			continue
 		}
-		sshconn, chans, reqs, err := ssh.NewServerConn(tcpconn, v.config)
+		sshconn, chans, reqs, err := ssh.NewServerConn(tcpconn, v.config.conf)
 		if err != nil {
 			v.logger <- &trace{
 				topic:   TraceHandshake,
@@ -159,6 +119,10 @@ func (v *server) process(reqs <-chan *ssh.Request) {
 		}
 		fmt.Println(req)
 	}
+}
+
+func (v *server) Use(fs ...Handler) {
+	v.option.AddMiddleware(fs...)
 }
 
 func (v *server) Run() error {
