@@ -1,11 +1,17 @@
 package server
 
 import (
+	"encoding/binary"
 	"fmt"
+	"io"
 	"net"
 	"os"
+	"os/exec"
 	"os/signal"
+	"sync"
 	"syscall"
+
+	"github.com/kr/pty"
 
 	"golang.org/x/crypto/ssh"
 )
@@ -106,18 +112,52 @@ func (v *server) handle(channel ssh.NewChannel) {
 			err:     err,
 		}
 	}
-	// defer connection.Close()
-	if connection != nil {
-	}
-	go v.process(requests)
+	go v.process(connection, requests)
 }
 
-func (v *server) process(reqs <-chan *ssh.Request) {
+func (v *server) process(channel ssh.Channel, reqs <-chan *ssh.Request) {
+	var once sync.Once
+	shell := exec.Command("sh", "-c", "$SHELL")
+	close := func() {
+		channel.Close()
+		shell.Process.Wait()
+		v.logger <- &trace{topic: TraceDisconnect, message: "Session closed"}
+	}
+	fi, err := pty.Start(shell)
+	if err != nil {
+		v.logger <- &trace{topic: TraceChannel, message: "Pty initialization failure"}
+		close()
+		return
+	}
+	v.logger <- &trace{topic: TraceChannel, message: "Pty initialized"}
+	go func() {
+		io.Copy(channel, fi)
+		once.Do(close)
+	}()
+	go func() {
+		io.Copy(fi, channel)
+		once.Do(close)
+	}()
 	for req := range reqs {
-		switch {
-		case req.Type == "shell":
+		switch req.Type {
+		case "shell":
+			if len(req.Payload) == 0 {
+				req.Reply(true, nil)
+			}
+		case "window-change":
+			w := binary.BigEndian.Uint32(req.Payload)
+			h := binary.BigEndian.Uint32(req.Payload[4:])
+			setWinsize(fi.Fd(), w, h)
+			req.Reply(true, nil)
+			v.logger <- &trace{topic: TraceChannel, message: "Pty resized"}
+		case "pty-req":
+			l := req.Payload[3]
+			w := binary.BigEndian.Uint32(req.Payload[l+4:])
+			h := binary.BigEndian.Uint32(req.Payload[l+4:][4:])
+			setWinsize(fi.Fd(), w, h)
+			req.Reply(true, nil)
+			v.logger <- &trace{topic: TraceChannel, message: "Pty request"}
 		}
-		fmt.Println(req)
 	}
 }
 

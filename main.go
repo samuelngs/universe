@@ -40,7 +40,7 @@ func main() {
 	)
 
 	ser.Use(func(c *server.Context) error {
-		log.Printf("hey %v", c.RemoteAddr())
+		log.Printf("RemoteAddr: %v", c.RemoteAddr())
 		return nil
 	})
 
@@ -48,9 +48,9 @@ func main() {
 		for {
 			select {
 			case s := <-ser.Logging():
-				log.Print(s)
+				log.Print("logging => ", s)
 			case s := <-ser.Subscribe():
-				log.Print(s)
+				log.Print("subscribe => ", s)
 			}
 		}
 	}()
