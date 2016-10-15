@@ -1,11 +1,17 @@
-hash: 19980eb1eff1d4ab8e6cf4b99ef9779fe23e9485b7970f903f04e48ce865e5c0
-updated: 2016-07-31T20:47:40.68172535-06:00
+hash: 3913699eb2a90e0236b222dc9a08dbed9f3ebdbbd59be93cf29e8a4565bf66cc
+updated: 2016-10-14T20:23:40.689696063-06:00
 imports:
-- name: golang.org/x/crypto
-  version: bc89c496413265e715159bdc8478ee9a92fdc265
+- name: github.com/kr/pty
+  version: ce7fa45920dc37a92de8377972e52bc55ffa8d57
+- name: github.com/samuelngs/universe
+  version: cf07a771f60375d7491042c8e4aca927001213ab
   subpackages:
-  - ssh
+  - sshd
+- name: golang.org/x/crypto
+  version: 5f31782cfb2b6373211f8f9fbf31283fa234b570
+  subpackages:
   - curve25519
   - ed25519
   - ed25519/internal/edwards25519
-devImports: []
+  - ssh
+testImports: []
